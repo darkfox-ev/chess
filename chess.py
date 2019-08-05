@@ -37,6 +37,9 @@ class Pawn(Piece):
         Piece.__init__(self,colour,position)
         self.name = 'P' if self.colour == 0 else 'p'
     def moves(self):
+        """ returns a list of possible moves given position
+        irrespective of other pieces on board """
+        
         _moves = []
         offset = 1 - self.colour * 2
         if not self.position:
@@ -246,7 +249,7 @@ class Board:
         
         P2 = self.get_piece(to_pos)
         self.place_piece(P,to_pos)
-        self.print_board()
+        #self.print_board()
         return True
     
     def find_piece(self, piece_name):
@@ -296,7 +299,6 @@ class Board:
             while temp_pos != to_pos:
                 
                 temp_pos = (temp_pos[0] + xdirection,temp_pos[1] + ydirection)
-                print(from_pos, to_pos, temp_pos, xdirection, ydirection)
                 if self.squares[temp_pos[0]][temp_pos[1]].piece and temp_pos != to_pos:
                     return True
             return False
@@ -334,10 +336,15 @@ class Board:
                     'non-pawn takes': '^[KQRBN]{1}x[a-h]{1}[1-8]{1}[+#]{0,1}$',
                     'non-pawn w f takes': '^[KQRBN]{1}[a-h]{1}x[a-h]{1}[1-8]{1}[+#]{0,1}$',
                     'non-pawn w r takes': '^[KQRBN]{1}[1-8]{1}x[a-h]{1}[1-8]{1}[+#]{0,1}$',
-                    'non-pawn w fr takes': '^[KQRBN]{1}([a-h][1-8]){1}x[a-h]{1}[1-8]{1}[+#]{0,1}$'
+                    'non-pawn w fr takes': '^[KQRBN]{1}([a-h][1-8]){1}x[a-h]{1}[1-8]{1}[+#]{0,1}$',
+                    'k-castle': '^O-O$',
+                    'q-castle': '^O-O-O$'
                     }
         
         label = None
+        from_pos, to_pos = None, None
+        from_pos2, to_pos2 = None, None # a castle requires 2 moves
+        
         for key,value in patterns.items():
             if re.match(value,move):
                 label = key
@@ -367,36 +374,127 @@ class Board:
             from_file = ord(move[0]) - 97
             P = self.squares[from_file][to_pos[1] + offset].piece
             if not P or P.name.upper() != 'P':
-                raise ValueError('Not a valide move')
+                raise ValueError('Not a valid move')
             from_pos = from_file, to_pos[1] + offset
         
-        if label == 'non-pawn' or label == 'non-pawn takes':
+        if label[:8] == 'non-pawn':
             piece_name = move[:1].lower() if colour == 1 else move[:1].upper()
-            if label == 'non-pawn':
-                to_pos = square_coord(move[1:3])
-            else:
-                to_pos = square_coord(move[2:4])
             
-            for i in range(8):
-                for s in self.squares[i]:
-                    if s.piece and s.piece.name == piece_name:
-                        if to_pos in self.find_moves(s.piece.get_position()):
-                            from_pos = s.piece.get_position()
+            cursor_dict = {
+                    'non-pawn': 1,
+                    'non-pawn w f': 2,
+                    'non-pawn w r': 2,
+                    'non-pawn w fr': 3,
+                    'non-pawn takes': 2,
+                    'non-pawn w f takes': 3,
+                    'non-pawn w r takes': 3,
+                    'non-pawn w fr takes': 4}
+            
+            cursor = cursor_dict[label]
+            
+            to_pos = square_coord(move[cursor:cursor+2])
+            
+            from_pos, _file, rank = None, None, None
+            
+            if label[9:13] == 'w fr':
+                from_pos = square_coord(move[1:3])
+            elif label[9:12] == 'w f':
+                _file = ord(move[1:2]) - 97
+            elif label[9:12] == 'w r':
+                rank = int(move[1:2]) - 1
+            if not from_pos:
+                for i in range(8):
+                    for s in self.squares[i]:
+                        if s.piece and s.piece.name == piece_name and not from_pos:
+                            if to_pos in self.find_moves(s.piece.get_position()):
+                                from_pos = s.piece.get_position()
+                                if _file and from_pos[0] != _file:
+                                    from_pos = None
+                                if rank and from_pos[1] != rank:
+                                    from_pos = None
+                            
                         
-                
-            #need to scan through squares and look for particular piece that can make move
-            #pass
-            
-        return (from_pos, to_pos)
+        if label == 'k-castle':
+            rank = 0 if colour == 0 else 7
+            if self.squares[4][rank].piece.name.upper() == 'K' and \
+                self.squares[5][rank].piece is None and \
+                self.squares[6][rank].piece is None and \
+                self.squares[7][rank].piece.name.upper() == 'R':
+                    from_pos = (4,rank)
+                    to_pos = (6,rank)
+                    from_pos2 = (7,rank)
+                    to_pos2 = (5,rank)
+            else:
+                raise ValueError('Not a valid move')
+        
+        if label == 'q-castle':
+            rank = 0 if colour == 0 else 7
+            if self.squares[4][rank].piece.name.upper() == 'K' and \
+                self.squares[3][rank].piece is None and \
+                self.squares[2][rank].piece is None and \
+                self.squares[1][rank].piece is None and \
+                self.squares[0][rank].piece.name.upper() == 'R':
+                    from_pos = (4,rank)
+                    to_pos = (2,rank)
+                    from_pos2 = (0,rank)
+                    to_pos2 = (3,rank)
+            else:
+                raise ValueError('Not a valid move')
+        
+        return ((from_pos, to_pos),(from_pos2, to_pos2))
+        
                 
     def move(self, colour, move):
-        from_pos, to_pos = self.move_parser(colour, move)
-        self.move_piece(from_pos, to_pos)
-            
+        parsed_move = self.move_parser(colour, move)
+        for m in parsed_move:
+            if m[0]:
+                self.move_piece(m[0], m[1])
+    
+    def read_pgn(self, pgn):
+        """ process all moves in a pgn string 
+        assume for now the string contains \n for new lines"""
+        lines = pgn.split('\n')
+        brackets = ''
+        moves = []
+        
+        for l in lines:
+            for s in l.split(' '):
+                if brackets == '{':
+                    if re.match('}',s):
+                        brackets = ''
+                        continue
+                if brackets == '(':
+                    if re.match(')',s):
+                        brackets = ''
+                        continue
+                if not(l) or l[0] == '[': #line is a tag or blank
+                    break
+                if re.match('[1-9]+.',s):
+                    continue
+                if s[0] == ';': #remainder of line is comments
+                    break
+                if s[0] == '{':
+                    brackets = '{'
+                    continue
+                if s[0] == '(':
+                    brackets = '('
+                    continue
+                if not brackets:
+                    moves.append(s)
+        
+        if moves[-1] in ('1-0','0-1','1/2-1/2'):
+            del moves[-1]
+        return moves
+                
+    
 if __name__ == '__main__':
     B = Board().setup()
-    B.move(0,'e4')
-    B.move(1,'e5')
-    #B.move(0,'Nf6')
+    pgn = open('c:\\temp\\pgn.txt').read()
+    turn = 0
+    for move in B.read_pgn(pgn):
+        print(move)
+        B.move(turn,move)
+        turn = int(not turn)
+    B.print_board()
     
     
