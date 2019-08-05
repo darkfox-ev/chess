@@ -216,7 +216,7 @@ class Board:
         BOT_RIGHT = u'\u255d'
         
         
-        print TOP_LEFT + 17 * HORIZ + TOP_RIGHT
+        print(TOP_LEFT + 17 * HORIZ + TOP_RIGHT)
         for j in range(7,-1,-1): #rank
             temp = VERT + ' '
             for i in range(8): #file
@@ -224,9 +224,9 @@ class Board:
                     temp = temp + self.squares[i][j].piece.name + ' '
                 else:
                     temp = temp + '_' + ' '
-            print temp + VERT + ' ' + str(j+1)
-        print BOT_LEFT + 17 * HORIZ + BOT_RIGHT
-        print '  a b c d e f g h'
+            print(temp + VERT + ' ' + str(j+1))
+        print(BOT_LEFT + 17 * HORIZ + BOT_RIGHT)
+        print('  a b c d e f g h')
         
     def get_piece(self, position):
         _file, _rank = position
@@ -296,7 +296,7 @@ class Board:
             while temp_pos != to_pos:
                 
                 temp_pos = (temp_pos[0] + xdirection,temp_pos[1] + ydirection)
-                print from_pos, to_pos, temp_pos, xdirection, ydirection
+                print(from_pos, to_pos, temp_pos, xdirection, ydirection)
                 if self.squares[temp_pos[0]][temp_pos[1]].piece and temp_pos != to_pos:
                     return True
             return False
